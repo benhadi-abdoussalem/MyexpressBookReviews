@@ -20,7 +20,6 @@ public_users.post("/register", (req,res) => {
   const username = req.body.username;
   const password = req.body.password;
 
-
   if (username && password) {
     if (!doesExist(username)) { 
       users.push({"username":username,"password":password});
