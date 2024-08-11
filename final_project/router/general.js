@@ -4,31 +4,35 @@ let isValid = require("./auth_users.js").isValid;
 let users = require("./auth_users.js").users;
 const public_users = express.Router();
 
+
+// Add middleware to parse JSON request bodies
+public_users.use(express.json());
+
 // Implementation of the registration process
-const doesExist = (username)=>{
-  let userswithsamename = users.filter((user)=>{
-    return user.username === username
+const doesExist = (username) => {
+  let userswithsamename = users.filter((user) => {
+    return user.username === username;
   });
-  if(userswithsamename.length > 0){
+  if (userswithsamename.length > 0) {
     return true;
   } else {
     return false;
   }
-}
-public_users.post("/register", (req,res) => {
-  //Write your code here
+};
+
+public_users.post("/register", (req, res) => {
   const username = req.body.username;
   const password = req.body.password;
 
   if (username && password) {
-    if (!doesExist(username)) { 
-      users.push({"username":username,"password":password});
-      return res.status(200).json({message: "User successfully registred. Now you can login"});
+    if (!doesExist(username)) {
+      users.push({"username": username, "password": password});
+      return res.status(200).json({message: "User successfully registered. Now you can login"});
     } else {
-      return res.status(404).json({message: "User already exists!"});
+      return res.status(409).json({message: "User already exists!"});
     }
-  } 
-  return res.status(404).json({message: "Unable to register user."});
+  }
+  return res.status(400).json({message: "Unable to register user. Please provide both username and password."});
 });
 
 
