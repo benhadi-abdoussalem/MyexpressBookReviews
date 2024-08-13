@@ -1,77 +1,184 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
-let books = require('./booksdb.js');
-const regd_users = express.Router();
+let books = require("./booksdb.js");
+let isValid = require("./auth_users.js").isValid;
+let users = require("./auth_users.js").users;
+const public_users = express.Router();
 
-let users = [{ "username": "abd", "password": "123" }];
-
-const authenticatedUsers = (req, res, next) => {
-  const accessToken = req.headers['authorization'];
-  if (accessToken) {
-    jwt.verify(accessToken, 'access', (err, user) => {
-      if (err) {
-        return res.status(403).json({ message: 'User not authenticated, Invalid token' });
-      }
-      req.user = user;
-      next();
-    });
+const doesExist = (username)=>{
+  let userswithsamename = users.filter((user)=>{
+    return user.username === username
+  });
+  if(userswithsamename.length > 0){
+    return true;
   } else {
-    return res.status(403).json({ message: 'User not logged in, No token provided' });
+    return false;
   }
-};
+}
 
-const isValid = (username) => {
-  const userMatches = users.filter((user) => user.username === username);
-  return userMatches.length > 0;
-};
 
-const authenticatedUser = (username, password) => {
-  const matchingUsers = users.filter((user) => user.username === username && user.password === password);
-  return matchingUsers.length > 0;
-};
-
-regd_users.post('/login', (req, res) => {
+public_users.post("/register", (req,res) => {
+  //Write your code here
   const username = req.body.username;
   const password = req.body.password;
 
-  if (!username || !password) {
-    return res.status(404).json({ message: 'Error logging in' });
-  }
 
-  if (authenticatedUser(username, password)) {
-    const accessToken = jwt.sign({ data: password }, 'access', { expiresIn: 60 * 60 });
-    req.session.authorization = accessToken;
-    return res.status(200).send('User successfully logged in');
-  } else {
-    return res.status(208).json({ message: 'Invalid Login. Check username and password' });
-  }
+  if (username && password) {
+    if (!doesExist(username)) { 
+      users.push({"username":username,"password":password});
+      return res.status(200).json({message: "User successfully registred. Now you can login"});
+    } else {
+      return res.status(404).json({message: "User already exists!"});
+    }
+  } 
+  return res.status(404).json({message: "Unable to register user."});
 });
 
-regd_users.put('/auth/review/:isbn', authenticatedUsers, (req, res) => {
+// Get the book list available in the shop
+public_users.get('/',function (req, res) {
+  //Write your code here
+  res.send(JSON.stringify(books,null,4));
+});
+
+// Get book details based on ISBN
+public_users.get('/isbn/:isbn',function (req, res) {
+  //Write your code here
+  const ISBN = req.params.isbn;
+  
+  res.send(books[ISBN])
+ });
+  
+// Get book details based on author
+public_users.get('/author/:author',function (req, res) {
+  //Write your code here
+  let ans = []
+    for(const [key, values] of Object.entries(books)){
+        const book = Object.entries(values);
+        for(let i = 0; i < book.length ; i++){
+            if(book[i][0] == 'author' && book[i][1] == req.params.author){
+                ans.push(books[key]);
+            }
+        }
+    }
+    if(ans.length == 0){
+        return res.status(300).json({message: "Author not found"});
+    }
+    res.send(ans);
+});
+
+// Get all books based on title
+public_users.get('/title/:title',function (req, res) {
+  //Write your code here
+  let ans = []
+  for(const [key, values] of Object.entries(books)){
+      const book = Object.entries(values);
+      for(let i = 0; i < book.length ; i++){
+          if(book[i][0] == 'title' && book[i][1] == req.params.title){
+              ans.push(books[key]);
+          }
+      }
+  }
+  if(ans.length == 0){
+      return res.status(300).json({message: "Title not found"});
+  }
+  res.send(ans);
+});
+
+//  Get book review
+public_users.get('/review/:isbn',function (req, res) {
+  //Write your code here
+  const ISBN = req.params.isbn;
+  res.send(books[ISBN].reviews)
+});
+
+// Task 10 
+// Add the code for getting the list of books available in the shop (done in Task 1) using Promise callbacks or async-await with Axios
+
+function getBookList(){
+  return new Promise((resolve,reject)=>{
+    resolve(books);
+  })
+}
+
+// Get the book list available in the shop
+public_users.get('/',function (req, res) {
+  getBookList().then(
+    (bk)=>res.send(JSON.stringify(bk, null, 4)),
+    (error) => res.send("denied")
+  );  
+});
+
+// Task 11
+// Add the code for getting the book details based on ISBN (done in Task 2) using Promise callbacks or async-await with Axios.
+
+function getFromISBN(isbn){
+  let book_ = books[isbn];  
+  return new Promise((resolve,reject)=>{
+    if (book_) {
+      resolve(book_);
+    }else{
+      reject("Unable to find book!");
+    }    
+  })
+}
+
+// Get book details based on ISBN
+public_users.get('/isbn/:isbn',function (req, res) {
   const isbn = req.params.isbn;
-  const review = req.body.review;
-  const username = req.session.authorization.username;
+  getFromISBN(isbn).then(
+    (bk)=>res.send(JSON.stringify(bk, null, 4)),
+    (error) => res.send(error)
+  )
+ });
 
-  if (books[isbn]) {
-    books[isbn].reviews[username] = review;
-    return res.status(200).send('Review successfully posted');
-  } else {
-    return res.status(404).json({ message: `ISBN ${isbn} not found` });
-  }
+// Task 12
+// Add the code for getting the book details based on Author (done in Task 3) using Promise callbacks or async-await with Axios.
+
+function getFromAuthor(author){
+  let output = [];
+  return new Promise((resolve,reject)=>{
+    for (var isbn in books) {
+      let book_ = books[isbn];
+      if (book_.author === author){
+        output.push(book_);
+      }
+    }
+    resolve(output);  
+  })
+}
+
+// Get book details based on author
+public_users.get('/author/:author',function (req, res) {
+  const author = req.params.author;
+  getFromAuthor(author)
+  .then(
+    result =>res.send(JSON.stringify(result, null, 4))
+  );
 });
 
-regd_users.delete('/auth/review/:isbn', authenticatedUsers, (req, res) => {
-  const isbn = req.params.isbn;
-  const username = req.session.authorization.username;
+// Task 13
+// Add the code for getting the book details based on Title (done in Task 4) using Promise callbacks or async-await with Axios.
 
-  if (books[isbn]) {
-    delete books[isbn].reviews[username];
-    return res.status(200).send('Review successfully deleted');
-  } else {
-    return res.status(404).json({ message: `ISBN ${isbn} not found` });
-  }
+
+function getFromTitle(title){
+  let output = [];
+  return new Promise((resolve,reject)=>{
+    for (var isbn in books) {
+      let book_ = books[isbn];
+      if (book_.title === title){
+        output.push(book_);
+      }
+    }
+    resolve(output);  
+  })
+}
+
+// Get all books based on title
+public_users.get('/title/:title',function (req, res) {
+  const title = req.params.title;
+  getFromTitle(title)
+  .then(
+    result =>res.send(JSON.stringify(result, null, 4))
+  );
 });
 
-module.exports.authenticated = regd_users;
-module.exports.isValid = isValid;
-module.exports.users = users;
+module.exports.general = public_users;
