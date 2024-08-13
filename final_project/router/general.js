@@ -13,8 +13,8 @@ const authenticatedUsers = (req, res, next) => {
       }
       req.user = user;
       next();
-  })};
-  else {
+  })}
+  else 
     return res.status(403).json,({ message: "User not logged in, No token provided" });
   }};
 
@@ -43,17 +43,12 @@ regd_users.post("/login", (req,res) => {
     return res.status(404).json({message: "Error logging in"});}
 
   if (authenticatedUser(username,password)) {
-    let accessToken = jwt.sign({
-      data: password
-    }, 'access', { expiresIn: 60 * 60 })};
-
-    req.session.authorization = {
-            accessToken,username
-        }
-        return res.status(200).send("User successfully logged in");
-     else {
-        return res.status(208).json({message: "Invalid Login. Check username and password"});}
-});
+    let accessToken = jwt.sign({data: password}, 'access', { expiresIn: 60 * 60 });
+    req.session.authorization = accessToken,username
+    return res.status(200).send("User successfully logged in");
+  else {
+    return res.status(208).json({message: "Invalid Login. Check username and password"});}
+    }});
 
 // Add a book review
 regd_users.put("/auth/review/:isbn", authenticatedUser, (req, res) => {
