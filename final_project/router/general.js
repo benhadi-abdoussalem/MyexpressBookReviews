@@ -1,115 +1,91 @@
 const express = require('express');
-const books = require("./booksdb.js");
-let isValid = require("./auth_users.js").isValid;
-let users = require("./auth_users.js").users;
-const public_users = express.Router();
+const jwt = require('jsonwebtoken');
+let books = require("./booksdb.js");
+const regd_users = express.Router();
+
+let users = [{"username":"abd","password":"123"}];
+const authenticatedUsers = (req, res, next) => {
+  const accessToken = req.headers[`authorization`];
+  if (accessToken) {
+    jwt.verify(accessToken, 'access', (err, user) => {
+      if (err) {
+        return res.status(403).json({ message: "User not authenticated, Invalid token" });
+      }
+      req.user = user;
+      next();
+  })};
+  else {
+    return res.status(403).json,({ message: "User not logged in, No token provided" });
+  }};
+
+const isValid = (username)=>{ //returns boolean
+//write code to check is the username is valid
+    const userMatches = users.filter((user) => user.username === username);
+    return userMatches.length > 0;
+}
+
+const authenticatedUser = (username,password)=>{ //returns boolean
+//write code to check if username and password match the one we have in records.
+  const matchingUsers = users.filter((user) => user.username === username && user.password === password);
+  return matchingUsers.length > 0;
+}
 
 
-// Add middleware to parse JSON request bodies
-public_users.use(express.json());
 
-// Implementation of the registration process
-const doesExist = (username) => {
-  let userswithsamename = users.filter((user) => {
-    return user.username === username;
-  });
-  if (userswithsamename.length > 0) {
-    return true;
-  } else {
-    return false;
-  }
-};
-
-public_users.post("/register", (req, res) => {
+//only registered users can login
+regd_users.post("/login", (req,res) => {
+  //Write your code here
+  console.log("login: ", req.body);
   const username = req.body.username;
   const password = req.body.password;
 
-  if (username && password) {
-    if (!doesExist(username)) {
-      users.push({"username": username, "password": password});
-      return res.status(200).json({message: "User successfully registered. Now you can login"});
-    } else {
-      return res.status(409).json({message: "User already exists!"});
+  if (!username || !password) {
+    return res.status(404).json({message: "Error logging in"});}
+
+  if (authenticatedUser(username,password)) {
+    let accessToken = jwt.sign({
+      data: password
+    }, 'access', { expiresIn: 60 * 60 })};
+
+    req.session.authorization = {
+            accessToken,username
+        }
+        return res.status(200).send("User successfully logged in");
+     else {
+        return res.status(208).json({message: "Invalid Login. Check username and password"});}
+});
+
+// Add a book review
+regd_users.put("/auth/review/:isbn", authenticatedUser, (req, res) => {
+  //Write your code here
+    const isbn = req.params.isbn;
+    const review = req.body.review;
+    const username = req.session.authorization.username;
+    console.log("add review: ", req.params, req.body, req.session);
+    if (books[isbn]) {
+        let book = books[isbn];
+        book.reviews[username] = review;
+        return res.status(200).send("Review successfully posted");
     }
-  }
-  return res.status(400).json({message: "Unable to register user. Please provide both username and password."});
+    else {
+        return res.status(404).json({message: `ISBN ${isbn} not found`});
+    }
 });
 
-
-// Get the book list available in the shop
-public_users.get('/',function (req, res) {
-    res.send(JSON.stringify({books}, null, 4));
-});
-
-// Get book details based on ISBN
-public_users.get('/isbn/:isbn',function (req, res) {
-  // Extract the isbn parameter from the request URL
+regd_users.delete("/auth/review/:isbn", authenticatedUser, (req, res) => {
   const isbn = req.params.isbn;
-  // Assuming books is an object
-  const booksArray = Object.values(books);
-  // Filter the books array to find books whose isbn matches the extracted isbn parameter
-  const filtered_books = booksArray.filter(book => book.isbn === isbn);
-  // Check if any books were found
-  if (filtered_books.length > 0) {
-    // Send the filtered_books array as the response to the client
-    res.send(filtered_books);
-  } else {
-    // Send a 404 Not Found response if no books were found
-    res.status(404).json({ message: 'No books found for the given isbn.' });
+  const username = req.session.authorization.username;
+  if (books[isbn]) {
+      let book = books[isbn];
+      delete book.reviews[username];
+      return res.status(200).send("Review successfully deleted");
+  }
+  else {
+      return res.status(404).json({message: `ISBN ${isbn} not found`});
   }
 });
-// Get book details based on author
-public_users.get('/author/:author',function (req, res) {
-  // Extract the author parameter from the request URL
-  const author = req.params.author;
-  // Assuming books is an object
-  const booksArray = Object.values(books);
-  // Filter the books array to find books whose author matches the extracted author parameter
-  const filtered_books = booksArray.filter(book => book.author === author);
-  // Check if any books were found
-  if (filtered_books.length > 0) {
-    // Send the filtered_books array as the response to the client
-    res.send(filtered_books);
-  } else {
-    // Send a 404 Not Found response if no books were found
-    res.status(404).json({ message: 'No books found for the given author.' });
-  }
-});
-// Get all books based on title
-public_users.get('/title/:title',function (req, res) {
-  // Extract the title parameter from the request URL
-  const title = req.params.title;
-  // Assuming books is an object
-  const booksArray = Object.values(books);
-  // Filter the books array to find books whose title matches the extracted  parameter
-  const filtered_books = booksArray.filter(book => book.title === title);
-  // Check if any books were found
-  if (filtered_books.length > 0) {
-    // Send the filtered_books array as the response to the client
-    res.send(filtered_books);
-  } else {
-    // Send a 404 Not Found response if no books were found
-    res.status(404).json({ message: 'No books found for the given title.' });
-  }
-});
+// ... rest of your code ...
 
-//  Get book review
-public_users.get('/review/:isbn',function (req, res) {
-  // Extract the isbn parameter from the request URL
-  const isbn = req.params.isbn;
-  // Assuming books is an object
-  const booksArray = Object.values(books);
-  // Filter the books array to find books whose isbn matches the extracted  parameter
-  const filtered_books = booksArray.filter(book => book.isbn === isbn);
-  // Check if any books were found
-  if (filtered_books.length >= 0) {
-    // Send the filtered_books array as the response to the client
-    res.send(filtered_books);
-  } else {
-    // Send a 404 Not Found response if no books were found
-    res.status(404).json({ message: 'No books found for the given isbn.' });
-  }
-});
-
-
-module.exports.general = public_users;
+module.exports.authenticated = regd_users;
+module.exports.isValid = isValid;
+module.exports.users = users;
